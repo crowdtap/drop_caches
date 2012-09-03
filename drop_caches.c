@@ -5,10 +5,13 @@
 
 void help(int exit_status)
 {
-	printf("Usage: drop_caches [OPTIONS]... FILE...            \n"
-	       "Drop the page caches of the given files.           \n"
-	       "                                                   \n"
-	       "  -h            show help                          \n");
+	printf(
+		"Usage: drop_caches [OPTIONS]... FILE...            \n"
+		"Drop the page caches of the given files.           \n"
+		"                                                   \n"
+		"  -h            show help                          \n"
+		"  -i INTERVAL   drop caches every INTERVAL seconds \n"
+	);
 	exit(exit_status);
 }
 
@@ -31,18 +34,30 @@ void drop_caches(char **files)
 			continue;
 		}
 		close(fd);
-		fprintf(stderr, "flushed\n");
+		fprintf(stderr, "caches dropped\n");
+	}
+}
+
+void drop_caches_every(char **files, int interval)
+{
+	for (;;) {
+		drop_caches(files);
+		sleep(interval);
 	}
 }
 
 int main(int argc, char **argv)
 {
 	int opt;
+	int interval = 0;
 
 	while ((opt = getopt(argc, argv, "hi:")) != -1) {
 		switch (opt) {
 		case 'h':
 			help(EXIT_SUCCESS);
+		case 'i':
+			interval = atoi(optarg);
+			break;
 		default:
 			help(EXIT_FAILURE);
 		}
@@ -51,7 +66,10 @@ int main(int argc, char **argv)
 	if (optind >= argc)
 		help(EXIT_FAILURE);
 
-	drop_caches(argv + optind);
+	if (interval)
+		drop_caches_every(argv + optind, interval);
+	else
+		drop_caches(argv + optind);
 
 	return 0;
 }
