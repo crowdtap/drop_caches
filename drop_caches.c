@@ -4,6 +4,7 @@
 #include <fcntl.h>
 #include <error.h>
 #include <errno.h>
+#include <stdbool.h>
 
 #define die(args...) error(EXIT_FAILURE, errno, args)
 
@@ -15,6 +16,7 @@ void help(int exit_status)
 		"                                                   \n"
 		"  -h            show help                          \n"
 		"  -i INTERVAL   drop caches every INTERVAL seconds \n"
+		"  -D            daemonize                          \n"
 	);
 	exit(exit_status);
 }
@@ -32,8 +34,17 @@ void drop_caches(int *fds, char **file_names, int num_files)
 	}
 }
 
-void drop_caches_every(int *fds, char **file_names, int num_files, int interval)
+void drop_caches_every(int *fds, char **file_names, int num_files,
+		       int interval, bool daemonize)
 {
+	if (daemonize) {
+		pid_t pid = fork();
+		if (pid < 0)
+			die("cannot fork");
+		if (pid > 0)
+			return;
+	}
+
 	for (;;) {
 		drop_caches(fds, file_names, num_files);
 		sleep(interval);
@@ -61,17 +72,22 @@ int *open_files(char **files, int num_files)
 int main(int argc, char **argv)
 {
 	int opt;
-	int interval = 0;
-	char **file_names;
-	int num_files;
-	int *fds;
+	bool daemonize = false;
 
-	while ((opt = getopt(argc, argv, "hi:")) != -1) {
+	char **file_names;
+	int *fds;
+	int num_files;
+	int interval = 0;
+
+	while ((opt = getopt(argc, argv, "hi:D")) != -1) {
 		switch (opt) {
 		case 'h':
 			help(EXIT_SUCCESS);
 		case 'i':
 			interval = atoi(optarg);
+			break;
+		case 'D':
+			daemonize = true;
 			break;
 		default:
 			help(EXIT_FAILURE);
@@ -87,7 +103,8 @@ int main(int argc, char **argv)
 	fds = open_files(file_names, num_files);
 
 	if (interval)
-		drop_caches_every(fds, file_names, num_files, interval);
+		drop_caches_every(fds, file_names, num_files,
+				  interval, daemonize);
 	else
 		drop_caches(fds, file_names, num_files);
 
